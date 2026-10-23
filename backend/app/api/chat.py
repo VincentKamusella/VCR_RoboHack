@@ -1,0 +1,35 @@
+"""Public chat endpoints used by the frontend."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Request
+
+from ..container import Services
+from ..models import ChatRequest, ChatResponse, SessionResponse
+
+router = APIRouter(prefix="/api", tags=["chat"])
+
+
+def _services(request: Request) -> Services:
+    return request.app.state.services
+
+
+@router.get("/health")
+def health(request: Request) -> dict:
+    return {"status": "ok", "pizzas": len(_services(request).recipes.all())}
+
+
+@router.post("/session", response_model=SessionResponse)
+def start_session(request: Request) -> SessionResponse:
+    services = _services(request)
+    session = services.sessions.create()
+    reply = services.engine.greet(session)
+    return SessionResponse(session_id=session.id, reply=reply.text, suggestions=reply.suggestions)
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(body: ChatRequest, request: Request) -> ChatResponse:
+    services = _services(request)
+    session = services.sessions.get(body.session_id) or services.sessions.create()
+    reply = services.engine.handle(session, body.message)
+    # Only the text goes back. reply.order / reply.missing were already handled internally.
+    return ChatResponse(session_id=session.id, reply=reply.text, suggestions=reply.suggestions)
