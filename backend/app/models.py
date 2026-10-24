@@ -15,11 +15,6 @@ class SessionRequest(BaseModel):
     language: Language = "en"
 
 
-class LanguageRequest(BaseModel):
-    session_id: str | None = Field(default=None, max_length=64)
-    language: Language
-
-
 class ChatRequest(BaseModel):
     session_id: str | None = Field(default=None, max_length=64)
     message: str = Field(min_length=1, max_length=500)

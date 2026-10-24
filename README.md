@@ -13,7 +13,7 @@ rule-based parsing and fuzzy matching.
 - **Menu book:** a small book in the corner of the page opens into a two-page menu with every
   pizza and its ingredients. Tapping a pizza orders it through the chat.
 - **Language toggle:** English is the default. The EN/DE switch in the top bar changes the
-  whole page to German, and the bot sends a new intro in German.
+  whole page to German and starts a new chat with a German intro.
 
 ```
 You:  Ich hätte gerne eine Hawaii ohne Ananas, bitte
@@ -96,7 +96,7 @@ frontend/
 
 **Language comes first.** The page starts in English. Every text on the page, the chat intro
 and the menu book follow the language chosen with the EN/DE toggle in the top bar. Switching
-keeps the conversation, drops any open question, and the bot greets again in the new language.
+clears the chat and starts a new conversation that opens with an intro in the new language.
 
 **The menu book** sits in the bottom-right corner as a small leather-bound book.
 
@@ -221,7 +221,6 @@ To add a wished-for pizza to the menu, add it to `data/pizzas.json` in pizza-db,
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `POST` | `/api/session` | `{language}`, optional, `en` or `de` | `{session_id, reply, language, suggestions}` with the greeting |
-| `POST` | `/api/session/language` | `{session_id, language}` | Same shape, with a new intro in that language |
 | `POST` | `/api/chat` | `{session_id, message}` | `{session_id, reply, language, suggestions}` |
 | `GET` | `/api/menu?language=en` | none | `{language, pizzas: [{name, short_name, ingredients}]}` |
 | `GET` | `/api/health` | none | `{status, pizzas}` |

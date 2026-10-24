@@ -67,11 +67,8 @@ def test_session_in_german(client):
     assert body["reply"].startswith("Hallo!")
 
 
-def test_language_toggle_sends_new_intro_and_sticks(client):
-    sid = client.post("/api/session").json()["session_id"]
-    body = client.post("/api/session/language", json={"session_id": sid, "language": "de"}).json()
-    assert body["session_id"] == sid
-    assert body["reply"].startswith("Hallo!")
+def test_chosen_language_sticks(client):
+    sid = client.post("/api/session", json={"language": "de"}).json()["session_id"]
     # The chosen language wins even when the user writes in English.
     reply = client.post("/api/chat", json={"session_id": sid, "message": "Salami please"}).json()
     assert reply["reply"].startswith("Gute Wahl")

@@ -1,5 +1,5 @@
 // Chat UI: renders messages, the language toggle and the menu book, and forwards input to the API.
-import { changeLanguage, sendMessage, startSession } from "./api.js";
+import { sendMessage, startSession } from "./api.js";
 import { applyI18n, getLang, setLang, t } from "./i18n.js";
 import { createMenuBook } from "./menu-book.js";
 
@@ -90,9 +90,8 @@ function selectLanguage(lang) {
   applyI18n();
   for (const btn of langButtons) btn.setAttribute("aria-pressed", String(btn.dataset.lang === lang));
   book.setLanguage();
-  // Keep the conversation, but the bot introduces itself again in the new language.
-  if (sessionId) botTurn(() => changeLanguage(sessionId, lang), "errorReach");
-  else start();
+  // A language switch always starts a fresh chat, greeted in the new language.
+  start();
 }
 
 // The language is fixed before anything else renders: English unless the toggle says otherwise.

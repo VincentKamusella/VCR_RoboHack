@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from ..container import Services
-from ..models import ChatRequest, ChatResponse, Language, LanguageRequest, MenuResponse, SessionRequest
+from ..models import ChatRequest, ChatResponse, Language, MenuResponse, SessionRequest
 from ..services.menu import build_menu
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -25,16 +25,6 @@ def start_session(request: Request, body: SessionRequest | None = None) -> ChatR
     services = _services(request)
     session = services.sessions.create()
     reply = services.engine.set_language(session, (body or SessionRequest()).language)
-    return ChatResponse(session_id=session.id, reply=reply.text,
-                        language=session.language, suggestions=reply.suggestions)
-
-
-@router.post("/session/language", response_model=ChatResponse)
-def change_language(body: LanguageRequest, request: Request) -> ChatResponse:
-    """Switch the conversation language. The reply is a fresh intro in that language."""
-    services = _services(request)
-    session = services.sessions.get(body.session_id) or services.sessions.create()
-    reply = services.engine.set_language(session, body.language)
     return ChatResponse(session_id=session.id, reply=reply.text,
                         language=session.language, suggestions=reply.suggestions)
 

@@ -18,11 +18,6 @@ export function startSession(language) {
   return request("POST", "/api/session", { language });
 }
 
-/** Switches the conversation language. The reply is a fresh intro in that language. */
-export function changeLanguage(sessionId, language) {
-  return request("POST", "/api/session/language", { session_id: sessionId, language });
-}
-
 /** Sends one user message. Returns { session_id, reply, language, suggestions }. */
 export function sendMessage(sessionId, message) {
   return request("POST", "/api/chat", { session_id: sessionId, message });
