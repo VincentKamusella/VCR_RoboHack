@@ -1,8 +1,9 @@
 # Pizza Chat
 
 A chatbot that asks what pizza you want, in English or German, and matches your answer to a
-recipe in the pizza-db database (by default at `~/pizza-db`). No AI agent is involved. The bot uses
-rule-based parsing and fuzzy matching.
+recipe in the pizza-db database (by default at `~/pizza-db`). A local llama3:8b model, served by
+Ollama, makes the conversation natural. A rule engine with fuzzy matching checks every decision
+against the database. Without Ollama the bot runs on the rules alone.
 
 - **Pizza found:** the full recipe is handed to the backend's order sink. The user only sees a
   confirmation.
@@ -40,6 +41,16 @@ make run            # serves the chat at http://localhost:8000
 `make run` expects the database at `~/pizza-db/build/pizza.db`. Point it somewhere else with
 `PIZZA_DB_PATH=/path/to/pizza.db make run`.
 
+For the natural conversation, Ollama must be running with the model installed:
+
+```sh
+ollama pull llama3:8b      # once
+ollama serve               # if it is not already running as an app
+```
+
+The chatbot picks the model up automatically at startup. `GET /api/health` shows which one is
+active: `"assistant": "llama3:8b"` or `"assistant": "rules"`.
+
 Without make:
 
 ```sh
@@ -61,6 +72,10 @@ backend/
     container.py         Builds and connects all services in one place
     models.py            Public API request/response schemas
     admin.py             CLI for the wishlist and orders
+    agent/
+      agent.py           Conversation agent: llama understands and talks, the rules decide
+      llm.py             Small Ollama client (standard library only)
+      prompts.py         Prompts for understanding messages and for phrasing replies
     api/
       chat.py            Public routes used by the frontend
       internal.py        Token-protected routes for other systems (robot, agent, admin)
@@ -92,6 +107,56 @@ frontend/
   js/chat.js             Chat rendering, language toggle and input handling
 ```
 
+## Conversation agent
+
+llama3:8b does two jobs: it understands the customer and it phrases the replies. The decisions
+stay with the rule engine, which also feeds the wishlist and the order sink.
+
+```
+customer message
+  -> llama: extract intent, pizza and excluded ingredients as JSON
+  -> grounding: keep only what the customer's own words support
+  -> normalized request, e.g. "Meat Lovers Pizza without bacon"
+  -> rule engine: match the database, take the order or pin the wish
+  -> llama: rewrite the engine's answer in a friendly tone
+  -> checks: facts kept? right language? no false claims? Otherwise use the engine's text
+```
+
+**Understanding.** The model returns structured JSON with the intent, pizza, excluded
+ingredients and a chosen option number. It handles free phrasing like "hold the pineapple pls",
+"I'm allergic to nuts, can I get the goat cheese one?" or "die mit Käse, aber ohne Gorgonzola".
+
+**Grounding.** A small model sometimes invents things, so its answer is checked against the
+customer's words.
+
+- A menu pizza counts only if the customer named it, or named at least two of its specific
+  toppings.
+- A pizza the bot itself just offered also counts, for example in reply to "Would you like
+  that?" or "the first one".
+- "Chicken Tikka" is not ordered as Pizza Chicken. It is pinned as a wish, and Pizza Chicken
+  is offered instead.
+- An excluded ingredient counts only if the customer actually wrote it. Exclusions the rules
+  find are always added.
+- Vague requests like "something with mushrooms" get recommendations instead of an order.
+- Plain answers such as "yes", "no thanks", "the second one" and "bye" are read by the rules
+  first.
+
+**Phrasing.** The model rewrites each answer in a friendly tone in the chosen language. A
+rewrite is thrown away, and the engine's own text is used, in these cases:
+
+- A confirmation drops the pizza or a removed ingredient.
+- A reply claims to leave out something the order still contains.
+- A question to the customer drops its options or its question.
+- A reply is in the wrong language.
+- A reply that isn't an order confirmation sounds like one.
+
+**Free conversation.** Greetings, questions and requests for recommendations get answers from
+the model with the whole menu as context. The model is told to recommend only real pizzas, to
+point to the menu book, and to steer towards an order.
+
+**Fallback.** If Ollama is not running or a call fails, that message is handled by the rules
+alone. The chat keeps working, just less chatty.
+
 ## Menu book and language
 
 **Language comes first.** The page starts in English. Every text on the page, the chat intro
@@ -108,7 +173,11 @@ clears the chat and starts a new conversation that opens with an intro in the ne
 - The left page number sits in the bottom-left corner and the right one in the bottom-right.
 - "Previous" and "Next" turn the page with a page-flip animation. The arrow keys work too.
 - Escape, the close button or a click outside closes the book.
-- Tapping a pizza closes the book and orders it in the chat.
+- Tapping a pizza opens it in place and shows its ingredients, each with a minus button.
+  Tapping the minus leaves that ingredient out, and tapping it again puts it back.
+- "Order" closes the book and sends the request to the chat, for example
+  "Pizza Calzone without Ricotta and Salami" or "Pizza Döner ohne Zwiebeln". "Cancel" or
+  Escape closes the pizza again.
 - On screens narrower than 760 pixels the book shows one page at a time.
 - Opening the page with `#menu` at the end of the address opens the book directly.
 
@@ -134,6 +203,8 @@ clears the chat and starts a new conversation that opens with an intro in the ne
    - Words in both languages work, for example "Ananas", "Zwiebeln" and "olives".
    - Group words remove several ingredients. "No onions" removes white and red onion.
      "Ohne Käse" removes every cheese.
+   - An ingredient's exact name removes only that ingredient. "Without Onion" keeps the
+     Red Onion, which is how requests from the menu book stay precise.
 6. **Decide what to do.**
 
 | Situation | What the user sees | What happens internally |
@@ -240,6 +311,10 @@ An unknown or expired `session_id` silently starts a new session. Messages are l
 | `PIZZABOT_INTERNAL_TOKEN` | unset | Enables `/internal/*` routes |
 | `PIZZABOT_SESSION_TTL` | `3600` | Seconds before an idle chat session expires |
 | `PIZZABOT_CORS_ORIGINS` | unset | Comma-separated origins allowed to call the API |
+| `PIZZABOT_LLM` | `auto` | `auto` uses Ollama when the model is available, `ollama` requires it, `off` uses only the rules |
+| `PIZZABOT_OLLAMA_URL` | `http://localhost:11434` | Ollama server |
+| `PIZZABOT_OLLAMA_MODEL` | `llama3:8b` | Model name as shown by `ollama list` |
+| `PIZZABOT_LLM_TIMEOUT` | `60` | Seconds to wait for one model answer before using the rules |
 
 The backend serves the frontend itself, so no CORS setup is needed by default. To host the
 frontend elsewhere, set `window.PIZZABOT_API_BASE` in `frontend/js/config.js` and add the
@@ -268,6 +343,10 @@ The tests build their own small recipe database, so they run without pizza-db. T
 parser, matching, exclusions in both languages, the wishlist, clarifications and the API,
 including a check that no recipe data reaches the frontend.
 
+The agent tests use a scripted fake model, so they run without Ollama. They check that invented
+pizzas and ingredients are ignored, that wrong or off-language replies are replaced, and that
+the bot falls back to the rules when the model is offline.
+
 ## Limitations
 
 - One pizza per message. Two pizzas in one sentence can be read as one combined name, so
@@ -275,3 +354,8 @@ including a check that no recipe data reaches the frontend.
 - Ingredients can only be removed, not added or swapped.
 - Sessions live in memory, so restarting the server ends open chats. Orders and the
   wishlist are stored on disk and survive restarts.
+- With llama3:8b each message takes about 4 to 8 seconds on a laptop, because the model is
+  called twice. The first message after startup can take longer while the model loads.
+- When the bot recommends pizzas in free conversation, llama3:8b sometimes describes them
+  loosely, for example calling a pizza spicy when it isn't. Orders are not affected, since the
+  rules check every order against the database.

@@ -18,7 +18,14 @@ const STRINGS = {
     menuPrev: "Previous",
     menuNext: "Next",
     menuClose: "Close the menu",
-    menuHint: "Tap a pizza to order it",
+    menuHint: "Tap a pizza to choose it",
+    menuCustomiseHint: "Tap − to leave an ingredient out.",
+    menuRemoveIngredient: "Leave out {name}",
+    menuRestoreIngredient: "Add {name} back",
+    menuCancel: "Cancel",
+    menuOrder: "Order",
+    menuWithout: "without",
+    menuAnd: "and",
     menuError: "The menu could not be loaded.",
     menuLoading: "Loading…",
     menuEnd: "Buon appetito!",
@@ -41,7 +48,14 @@ const STRINGS = {
     menuPrev: "Zurück",
     menuNext: "Weiter",
     menuClose: "Speisekarte schließen",
-    menuHint: "Tippe auf eine Pizza, um sie zu bestellen",
+    menuHint: "Tippe auf eine Pizza, um sie auszuwählen",
+    menuCustomiseHint: "Tippe auf −, um eine Zutat wegzulassen.",
+    menuRemoveIngredient: "{name} weglassen",
+    menuRestoreIngredient: "{name} wieder hinzufügen",
+    menuCancel: "Abbrechen",
+    menuOrder: "Bestellen",
+    menuWithout: "ohne",
+    menuAnd: "und",
     menuError: "Die Speisekarte konnte nicht geladen werden.",
     menuLoading: "Lädt…",
     menuEnd: "Buon appetito!",
@@ -60,8 +74,10 @@ export function setLang(lang) {
   if (LANGUAGES.includes(lang)) current = lang;
 }
 
-export function t(key) {
-  return STRINGS[current][key] ?? STRINGS.en[key] ?? key;
+/** Translated text; "{name}" placeholders are filled from vars. */
+export function t(key, vars = {}) {
+  const text = STRINGS[current][key] ?? STRINGS.en[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 }
 
 /** Fills every element marked with data-i18n, data-i18n-placeholder, -title or -aria-label. */

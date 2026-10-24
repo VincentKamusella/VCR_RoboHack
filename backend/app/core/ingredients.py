@@ -16,6 +16,7 @@ FUZZY_PHRASE_CUTOFF = 0.84
 class ResolvedTerm:
     text: str                 # the words as the user typed them
     names: frozenset[str]     # matching ingredient names in the database
+    exact: str | None = None  # set when the words are one ingredient's own name ("Onion")
 
 
 def ingredient_display_name(name: str, language: str) -> str:
@@ -30,10 +31,15 @@ class IngredientResolver:
         self.categories = ingredient_categories
         self.terms: dict[str, set[str]] = {}
 
+        # An ingredient's own name (English or German display name) refers to exactly that
+        # ingredient, even where the same word is also a group ("Onion" vs. "onions").
+        self.exact: dict[str, str] = {}
         for name in ingredient_categories:
             self._add(name, [name])
+            self.exact[" ".join(content_words(name))] = name
         for name, (german, synonyms) in lexicon.INGREDIENTS.items():
             if name in ingredient_categories:
+                self.exact.setdefault(" ".join(content_words(german)), name)
                 for term in [german, *synonyms]:
                     self._add(term, [name])
         for term, names in lexicon.INGREDIENT_GROUPS.items():
@@ -61,12 +67,12 @@ class IngredientResolver:
         while i < len(tokens):
             hit = self._lookup(tokens, i)
             if hit:
-                size, names = hit
+                size, names, exact = hit
                 if pending_unknown:
                     unknown.append(" ".join(pending_unknown))
                     pending_unknown = []
                 text = " ".join(t.raw for t in tokens[i:i + size])
-                resolved.append(ResolvedTerm(text, frozenset(names)))
+                resolved.append(ResolvedTerm(text, frozenset(names), exact))
                 i += size
             else:
                 pending_unknown.append(tokens[i].raw)
@@ -75,19 +81,19 @@ class IngredientResolver:
             unknown.append(" ".join(pending_unknown))
         return resolved, unknown
 
-    def _lookup(self, tokens: list[Token], i: int) -> tuple[int, set[str]] | None:
+    def _lookup(self, tokens: list[Token], i: int) -> tuple[int, set[str], str | None] | None:
         longest = min(MAX_PHRASE_WORDS, len(tokens) - i)
         for size in range(longest, 0, -1):
             phrase = " ".join(t.norm for t in tokens[i:i + size])
             if phrase in self.terms:
-                return size, self.terms[phrase]
+                return size, self.terms[phrase], self.exact.get(phrase)
         for size in range(min(3, longest), 0, -1):
             phrase = " ".join(t.norm for t in tokens[i:i + size])
             if len(phrase) < 4:
                 continue
             close = get_close_matches(phrase, self._term_list, n=1, cutoff=FUZZY_PHRASE_CUTOFF)
             if close:
-                return size, self.terms[close[0]]
+                return size, self.terms[close[0]], self.exact.get(close[0])
         return None
 
     def display_name(self, name: str, language: str) -> str:

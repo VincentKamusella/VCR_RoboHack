@@ -16,7 +16,8 @@ def _services(request: Request) -> Services:
 
 @router.get("/health")
 def health(request: Request) -> dict:
-    return {"status": "ok", "pizzas": len(_services(request).recipes.all())}
+    services = _services(request)
+    return {"status": "ok", "pizzas": len(services.recipes.all()), "assistant": services.assistant_name}
 
 
 @router.post("/session", response_model=ChatResponse)
@@ -24,7 +25,7 @@ def start_session(request: Request, body: SessionRequest | None = None) -> ChatR
     """Start a conversation in the language chosen in the UI (English by default)."""
     services = _services(request)
     session = services.sessions.create()
-    reply = services.engine.set_language(session, (body or SessionRequest()).language)
+    reply = services.assistant.set_language(session, (body or SessionRequest()).language)
     return ChatResponse(session_id=session.id, reply=reply.text,
                         language=session.language, suggestions=reply.suggestions)
 
@@ -33,7 +34,7 @@ def start_session(request: Request, body: SessionRequest | None = None) -> ChatR
 def chat(body: ChatRequest, request: Request) -> ChatResponse:
     services = _services(request)
     session = services.sessions.get(body.session_id) or services.sessions.create()
-    reply = services.engine.handle(session, body.message)
+    reply = services.assistant.handle(session, body.message)
     # Only the text goes back. reply.order / reply.missing were already handled internally.
     return ChatResponse(session_id=session.id, reply=reply.text,
                         language=session.language, suggestions=reply.suggestions)

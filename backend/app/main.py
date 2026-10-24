@@ -13,14 +13,16 @@ from fastapi.staticfiles import StaticFiles
 from .api import chat, internal
 from .config import Settings
 from .container import build_services
+from .agent.llm import LLMClient
 from .services.order_sink import OrderSink
 
 
-def create_app(settings: Settings | None = None, order_sink: OrderSink | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, order_sink: OrderSink | None = None,
+               llm: LLMClient | None = None) -> FastAPI:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     settings = settings or Settings.from_env()
     app = FastAPI(title="Pizza Chatbot", version="1.0.0")
-    app.state.services = build_services(settings, order_sink)
+    app.state.services = build_services(settings, order_sink, llm)
 
     if settings.cors_origins:
         app.add_middleware(

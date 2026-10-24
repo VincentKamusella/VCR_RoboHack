@@ -16,7 +16,7 @@ yep sure hi hello hey thanks thank cheers good great nice then so also and or bu
 pizza pizzas pie pies style kind type sort large small medium big regular normal classic
 hungry today tonight now really very much lot something what how about instead rather
 prefer again another too same usual delicious tasty yummy fresh please hmm uh um well
-order on top out off
+order on top out off extra more double guys folks sell serve offer
 """
 
 STOPWORDS_DE = """
@@ -28,6 +28,7 @@ dank und oder mit fur fuer zu von vom auf als noch dann also vielleicht lieber e
 pizza pizzen sorte art gross grosse grossen kleine klein mittel heute jetzt bekomme
 bekommen krieg kriegen kann konnte koennte hunger was einmal nochmal normale normal
 klassische klassisch leckere lecker frische bitteschon gerade aber lass lassen drauf
+extra mehr doppelt habt gibt gibts macht machen anbieten
 """
 
 # Italian connectors that appear inside pizza names ('Salami e Funghi', 'Frutti di Mare').
@@ -42,6 +43,9 @@ ohne kein keine keinen keinem keiner keines ausser nix
 # "Hawaii, Ananas WEGLASSEN": the words right before the marker are excluded.
 EXCLUSION_POSTFIX = "weglassen weg raus"
 
+# "No thanks" / "nein danke" is an answer, not the start of an exclusion list.
+NOT_EXCLUSION_AFTER_MARKER = "thanks thank thx danke"
+
 # Words that end an exclusion list: "no onions ON my Tonno", "ohne Zwiebeln, ABER ...".
 EXCLUSION_TERMINATORS = "on onto for fur fuer but aber with mit please bitte instead stattdessen"
 
@@ -55,6 +59,9 @@ YES_WORDS = "yes yeah yep yup sure ok okay correct right exactly please ja jo je
 NO_WORDS = "no nope nah none neither nein ne nee keine keiner nichts nothing nicht"
 GREETING_WORDS = "hi hello hey hallo servus moin gruezi gruss gruß tag morning evening abend"
 ALTERNATIVE_WORDS = "or oder either entweder"
+BYE_WORDS = "bye goodbye ciao tschuss tschues tschau servus adieu cya"
+# "Something with mushrooms": a request for suggestions, not for one particular pizza.
+VAGUE_WORDS = "something anything etwas irgendwas irgendetwas"
 CANCEL_WORDS = "cancel abort stop reset restart abbrechen abbruch neustart"
 MENU_WORDS = "menu menue karte speisekarte options auswahl angebot list liste choices"
 MENU_PHRASES = [
@@ -119,7 +126,7 @@ PIZZA_ALIASES = {
     "Meat Lovers Pizza": ["meat lover", "meatlovers", "meat", "fleisch", "fleischliebhaber"],
     "Supreme Pizza": ["supreme"],
     "Chicago Deep Dish": ["deep dish", "chicago"],
-    "New York Cheese Pizza": ["new york", "ny", "nyc", "new york style", "cheese"],
+    "New York Cheese Pizza": ["new york", "ny", "nyc", "new york style"],
     "Pizza Gorgonzola e Pere": ["gorgonzola pear", "gorgonzola birne"],
     "Pizza Goat Cheese & Honey": ["goat cheese", "ziegenkäse", "ziegenkäse honig"],
     "Pizza Prosciutto Crudo e Rucola": [

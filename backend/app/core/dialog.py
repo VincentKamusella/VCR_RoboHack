@@ -16,7 +16,7 @@ from . import responses as r
 from .ingredients import IngredientResolver
 from .matcher import MatchKind, PizzaMatch, PizzaMatcher
 from .parser import (
-    CANCEL, GREETINGS, MENU, NO, POSTFIX_MARKERS, PREFIX_MARKERS, STOPWORDS, YES, ParsedMessage, parse,
+    BYE, CANCEL, GREETINGS, MENU, NO, POSTFIX_MARKERS, PREFIX_MARKERS, STOPWORDS, YES, ParsedMessage, parse,
 )
 from .session import DialogState, Session
 from .text import Token
@@ -25,7 +25,7 @@ MAX_MESSAGE_TOKENS = 60
 MAX_WISH_WORDS = 6
 DOUGH = "standard pizza dough"
 YES_NO = {"en": ["Yes", "No"], "de": ["Ja", "Nein"]}
-INTENT_WORDS = YES | NO | CANCEL | MENU | GREETINGS
+INTENT_WORDS = YES | NO | CANCEL | MENU | GREETINGS | BYE
 
 
 @dataclass
@@ -61,9 +61,13 @@ class DialogEngine:
         session.language_locked = True
         return self.greet(session)
 
-    def handle(self, session: Session, text: str) -> Reply:
+    def handle(self, session: Session, text: str, original: str | None = None) -> Reply:
+        """Process one message. `original` is the user's own wording when `text` is a
+        normalized request built by the agent (e.g. "Pizza Hawaii without pineapple")."""
         text = (text or "").strip()
         msg = parse(text)
+        if original:
+            msg.original = original
         if msg.language and not session.language_locked:
             session.language = msg.language
         lang = session.language
@@ -100,7 +104,7 @@ class DialogEngine:
                 )
             window = match.window
             leftover = msg.pizza_tokens[:window[0]] + msg.pizza_tokens[window[1]:]
-            return self._finalize(session, recipe, msg.exclusion_chunks, leftover, msg.text)
+            return self._finalize(session, recipe, msg.exclusion_chunks, leftover, msg.original, msg.text)
 
         if match.kind in (MatchKind.AMBIGUOUS, MatchKind.PARTIAL):
             names = [c.name for c in match.candidates]
@@ -120,7 +124,7 @@ class DialogEngine:
             if msg.exclusion_chunks:
                 excluded = [t.raw for chunk in msg.exclusion_chunks for t in chunk]
                 return Reply(r.say(lang, "exclusions_only", items=r.items(lang, excluded)))
-            if msg.says_no:
+            if msg.says_no or msg.says_bye:
                 return Reply(r.say(lang, "goodbye"))
             if msg.greets:
                 return Reply(r.say(lang, "greet_back"), r.SUGGESTIONS[lang])
@@ -152,8 +156,8 @@ class DialogEngine:
         if chosen:
             recipe = self.recipes.get(chosen)
             exclusions = session.pending_exclusions + msg.exclusion_chunks
-            message = f"{session.pending_message} | {msg.text}"
-            return self._finalize(session, recipe, exclusions, [], message)
+            message = f"{session.pending_message} | {msg.original}"
+            return self._finalize(session, recipe, exclusions, [], message, msg.text)
 
         # The user named a different pizza: start over with this message.
         if msg.pizza_tokens and self.matcher.match(msg.pizza_tokens, alternatives=msg.offers_alternatives).kind != MatchKind.NONE:
@@ -179,7 +183,7 @@ class DialogEngine:
     # --- helpers --------------------------------------------------------------------
 
     def _finalize(self, session: Session, recipe: Recipe, exclusion_chunks: list[list[Token]],
-                  leftover: list[Token], message: str) -> Reply:
+                  leftover: list[Token], message: str, interpreted: str | None = None) -> Reply:
         lang = session.language
         recipe_names = [i.name for i in recipe.ingredients]
 
@@ -191,6 +195,8 @@ class DialogEngine:
             unknown.extend(unresolved)
             for term in terms:
                 hits = [n for n in recipe_names if n in term.names]
+                if term.exact in hits:
+                    hits = [term.exact]   # "without Onion" keeps the Red Onion
                 if hits:
                     removed.extend(n for n in hits if n not in removed)
                 else:
@@ -207,6 +213,7 @@ class DialogEngine:
             "session_id": session.id,
             "language": lang,
             "message": message,
+            "interpreted_as": interpreted or message,
             "pizza": {
                 "id": recipe.id, "slug": recipe.slug, "name": recipe.name,
                 "style": recipe.style, "origin": recipe.origin,
@@ -240,7 +247,7 @@ class DialogEngine:
         session.state = DialogState.CLARIFYING
         session.candidates = names
         session.pending_exclusions = msg.exclusion_chunks
-        session.pending_message = msg.text
+        session.pending_message = msg.original
         session.pending_wish = None
 
     def _decline(self, session: Session) -> str | None:
@@ -257,7 +264,7 @@ class DialogEngine:
 
     def _pin(self, requested: str, tokens: list[Token], msg: ParsedMessage, lang: str) -> None:
         normalized = " ".join(t.norm for t in tokens if t.norm not in STOPWORDS)
-        self.wishlist.add(requested, normalized, msg.text, lang)
+        self.wishlist.add(requested, normalized, msg.original, lang)
 
     def _unknown_neighbours(self, msg: ParsedMessage, match: PizzaMatch) -> list[Token]:
         """Unknown words written directly before or after the matched pizza name."""

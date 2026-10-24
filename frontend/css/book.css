@@ -206,6 +206,64 @@
 }
 .dish:hover, .dish:focus-visible { background: rgba(110, 38, 25, .08); outline: none; }
 .dish:focus-visible { box-shadow: inset 0 0 0 2px rgba(110, 38, 25, .5); }
+.dish-item.is-expanded {
+  border-radius: 8px;
+  background: rgba(110, 38, 25, .06);
+  box-shadow: inset 0 0 0 1px rgba(110, 38, 25, .18);
+}
+.dish-item.is-expanded .dish:hover { background: none; }
+
+.dish__panel { padding: 2px 8px 10px; }
+.dish__panel-hint { margin: 0 0 6px; font-size: 12px; font-style: italic; color: var(--ink-soft); }
+.dish__chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+.ingredient {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid rgba(110, 38, 25, .35);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ingredient__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--leather);
+  color: var(--paper);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ingredient:hover .ingredient__icon { background: #a23d2a; }
+.ingredient[aria-pressed="true"] { border-style: dashed; color: var(--ink-soft); }
+.ingredient[aria-pressed="true"] .ingredient__name { text-decoration: line-through; opacity: .6; }
+.ingredient[aria-pressed="true"] .ingredient__icon { background: #6b7a3a; }
+.ingredient:focus-visible { outline: 2px solid var(--leather); outline-offset: 1px; }
+
+.dish__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.dish__cancel,
+.dish__order {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--serif);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dish__cancel { border: 1px solid rgba(110, 38, 25, .35); background: none; color: var(--leather); }
+.dish__order { border: 0; background: var(--leather); color: var(--paper); }
+.dish__order:hover { background: #8f3726; }
+.dish__cancel:focus-visible,
+.dish__order:focus-visible { outline: 2px solid var(--leather); outline-offset: 2px; }
+
 .dish__name { display: block; font-size: 16px; font-weight: 700; color: var(--ink-title); }
 .dish__ingredients { display: block; font-size: 12.5px; font-style: italic; line-height: 1.35; color: var(--ink-soft); }
 
@@ -309,3 +367,6 @@
 @media (max-width: 800px) {
   .chat__suggestions { padding-right: 72px; }
 }
+
+/* An opened pizza shows its ingredients as chips, so hide the italic summary line. */
+.dish-item.is-expanded .dish__ingredients { display: none; }

@@ -18,6 +18,11 @@ class Settings:
     session_ttl_seconds: int = 3600
     internal_api_token: str | None = None
     cors_origins: list[str] = field(default_factory=list)
+    # LLM agent: "auto" uses Ollama when the model is available, "ollama" requires it, "off" = rules only.
+    llm_mode: str = "off"
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3:8b"
+    llm_timeout_seconds: float = 60.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -29,4 +34,8 @@ class Settings:
             session_ttl_seconds=int(env.get("PIZZABOT_SESSION_TTL", "3600")),
             internal_api_token=env.get("PIZZABOT_INTERNAL_TOKEN") or None,
             cors_origins=[o.strip() for o in env.get("PIZZABOT_CORS_ORIGINS", "").split(",") if o.strip()],
+            llm_mode=env.get("PIZZABOT_LLM", "auto").lower(),
+            ollama_url=env.get("PIZZABOT_OLLAMA_URL", "http://localhost:11434"),
+            ollama_model=env.get("PIZZABOT_OLLAMA_MODEL", "llama3:8b"),
+            llm_timeout_seconds=float(env.get("PIZZABOT_LLM_TIMEOUT", "60")),
         )

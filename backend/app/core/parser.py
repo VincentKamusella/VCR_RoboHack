@@ -24,11 +24,14 @@ STOPWORDS = _folded_set(lexicon.STOPWORDS_EN, lexicon.STOPWORDS_DE, lexicon.STOP
 PREFIX_MARKERS = _folded_set(lexicon.EXCLUSION_PREFIX)
 POSTFIX_MARKERS = _folded_set(lexicon.EXCLUSION_POSTFIX)
 TERMINATORS = _folded_set(lexicon.EXCLUSION_TERMINATORS)
+NOT_AFTER_MARKER = _folded_set(lexicon.NOT_EXCLUSION_AFTER_MARKER)
 SEPARATORS = _folded_set(lexicon.LIST_SEPARATORS)
 BOUNDARIES = _folded_set(lexicon.CLAUSE_BOUNDARIES)
 YES = _folded_set(lexicon.YES_WORDS)
 NO = _folded_set(lexicon.NO_WORDS)
 CANCEL = _folded_set(lexicon.CANCEL_WORDS)
+BYE = _folded_set(lexicon.BYE_WORDS)
+VAGUE = _folded_set(lexicon.VAGUE_WORDS)
 GREETINGS = _folded_set(lexicon.GREETING_WORDS)
 ALTERNATIVES = _folded_set(lexicon.ALTERNATIVE_WORDS)
 MENU = _folded_set(lexicon.MENU_WORDS)
@@ -47,6 +50,7 @@ def content_words(text: str) -> list[str]:
 class ParsedMessage:
     text: str
     tokens: list[Token]
+    original: str = ""   # what the user actually typed, when `text` was rewritten by the agent
     pizza_tokens: list[Token] = field(default_factory=list)
     exclusion_chunks: list[list[Token]] = field(default_factory=list)
     language: str | None = None
@@ -54,6 +58,8 @@ class ParsedMessage:
     says_yes: bool = False
     says_no: bool = False
     wants_cancel: bool = False
+    says_bye: bool = False
+    is_vague: bool = False          # "something with mushrooms"
     greets: bool = False
     offers_alternatives: bool = False   # "Salami OR Margherita"
     ordinal: int | None = None
@@ -76,7 +82,7 @@ def detect_language(tokens: list[Token], text: str) -> str | None:
 
 def parse(text: str) -> ParsedMessage:
     tokens = tokenize(text)
-    msg = ParsedMessage(text=text, tokens=tokens)
+    msg = ParsedMessage(text=text, tokens=tokens, original=text)
     _split_exclusions(msg)
     _detect_intents(msg)
     msg.language = detect_language(tokens, text)
@@ -104,7 +110,7 @@ def _split_exclusions(msg: ParsedMessage) -> None:
 
         if n in PREFIX_MARKERS:
             # "No, a Funghi please": a marker followed by punctuation is just an answer.
-            if nxt is None or nxt.is_punct:
+            if nxt is None or nxt.is_punct or nxt.norm in NOT_AFTER_MARKER:
                 continue
             flush()
             in_scope = True
@@ -151,6 +157,8 @@ def _detect_intents(msg: ParsedMessage) -> None:
     msg.says_yes = bool(norm_set & YES) and len(norms) <= 4
     msg.says_no = bool(norm_set & NO) and not msg.exclusion_chunks
     msg.wants_cancel = bool(norm_set & CANCEL) and len(norms) <= 4
+    msg.says_bye = bool(norm_set & BYE) and len(norms) <= 6
+    msg.is_vague = bool(norm_set & VAGUE)
     msg.greets = bool(norm_set & GREETINGS)
     msg.offers_alternatives = bool(norm_set & ALTERNATIVES)
     for n in norms:

@@ -100,7 +100,7 @@ applyI18n();
 
 const book = createMenuBook({
   launcher: document.getElementById("menu-launcher"),
-  onOrder: (pizzaName) => submit(pizzaName),
+  onOrder: (message) => submit(message),
 });
 
 form.addEventListener("submit", (e) => {

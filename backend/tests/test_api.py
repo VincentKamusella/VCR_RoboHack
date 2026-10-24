@@ -52,7 +52,7 @@ def test_internal_routes_with_token(settings, sink):
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok", "pizzas": 16}
+    assert client.get("/api/health").json() == {"status": "ok", "pizzas": 16, "assistant": "rules"}
 
 
 def test_session_defaults_to_english(client):

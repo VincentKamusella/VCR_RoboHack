@@ -28,6 +28,8 @@ class Session:
     # Set when the user's wording did not match any pizza; logged as a wish if they decline.
     pending_wish: tuple[str, str] | None = None
     last_active: float = field(default_factory=time.monotonic)
+    # Recent turns for the LLM agent: [{"role": "user" | "assistant", "content": str}, ...]
+    history: list[dict] = field(default_factory=list)
 
     def reset_pending(self) -> None:
         self.state = DialogState.AWAITING_CHOICE

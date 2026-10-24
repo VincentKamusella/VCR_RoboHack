@@ -137,3 +137,42 @@ def test_language_follows_user(chat):
 
 def test_german_display_names_for_removed_ingredients(chat):
     assert "ohne Ananas" in chat("Hawaii ohne Ananas").text
+
+
+def test_exact_ingredient_name_removes_only_that_ingredient(engine):
+    from app.data.recipes import Ingredient, Recipe
+    from app.core.session import Session
+    both = Recipe(99, "both", "Pizza Both Onions", "Test", "Test",
+                  (Ingredient("Onion", "vegetable"), Ingredient("Red Onion", "vegetable")))
+    session = Session(id="x")
+    order = engine._finalize(session, both, [_tokens("Onion")], [], "test").order
+    assert order["removed_ingredients"] == ["Onion"]
+    order = engine._finalize(session, both, [_tokens("onions")], [], "test").order
+    assert order["removed_ingredients"] == ["Onion", "Red Onion"]
+
+
+def _tokens(text):
+    from app.core.text import tokenize
+    return tokenize(text)
+
+
+def test_menu_book_requests_remove_exactly_the_chosen_ingredients(engine):
+    """The menu book sends e.g. 'Pizza Hawaii without Pineapple and Cooked Ham'. Every
+    ingredient of every pizza must come back out exactly, in both languages."""
+    from app.core.session import Session
+    from app.services.menu import build_menu
+    phrasing = {"en": ("without", "and"), "de": ("ohne", "und")}
+    for lang, (without, conj) in phrasing.items():
+        menu = {p["name"]: p["ingredients"] for p in build_menu(engine.recipes, lang)}
+        for recipe in engine.recipes.all():
+            db_names = [i.name for i in recipe.ingredients]
+            shown = menu[recipe.name]
+            picks = [[k] for k in range(len(db_names))] + [list(range(1, len(db_names)))]
+            for pick in picks:
+                parts = [shown[k] for k in pick]
+                listed = parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {conj} {parts[-1]}"
+                session = Session(id="x", language=lang, language_locked=True)
+                order = engine.handle(session, f"{recipe.name} {without} {listed}").order
+                assert order is not None, (lang, recipe.name, listed)
+                assert order["pizza"]["name"] == recipe.name
+                assert sorted(order["removed_ingredients"]) == sorted(db_names[k] for k in pick), (lang, listed)

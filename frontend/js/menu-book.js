@@ -35,7 +35,8 @@ function chunk(items, size) {
 }
 
 /**
- * @param {{ launcher: HTMLElement, onOrder: (pizzaName: string) => void }} options
+ * @param {{ launcher: HTMLElement, onOrder: (message: string) => void }} options
+ *   onOrder receives a chat message such as "Pizza Hawaii without Pineapple".
  */
 export function createMenuBook({ launcher, onOrder }) {
   const overlay = document.createElement("div");
@@ -94,10 +95,12 @@ export function createMenuBook({ launcher, onOrder }) {
       list.className = "page__list";
       for (const pizza of pages[index]) {
         const item = document.createElement("li");
+        item.className = "dish-item";
+        item.dataset.name = pizza.name;
         const dish = document.createElement("button");
         dish.type = "button";
         dish.className = "dish";
-        dish.dataset.name = pizza.name;
+        dish.setAttribute("aria-expanded", "false");
         const name = document.createElement("span");
         name.className = "dish__name";
         name.textContent = pizza.short_name;
@@ -259,6 +262,75 @@ export function createMenuBook({ launcher, onOrder }) {
     else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
   }
 
+  // --- choosing a pizza and leaving out ingredients ----------------------------
+
+  function findPizza(name) {
+    return (cache.get(getLang()) || []).find((p) => p.name === name);
+  }
+
+  function collapseAll() {
+    for (const item of spread.querySelectorAll(".dish-item.is-expanded")) {
+      item.classList.remove("is-expanded");
+      item.querySelector(".dish").setAttribute("aria-expanded", "false");
+      item.querySelector(".dish__panel")?.remove();
+    }
+  }
+
+  function setChip(chip, removed) {
+    const name = chip.dataset.ingredient;
+    chip.setAttribute("aria-pressed", String(removed));
+    chip.setAttribute("aria-label", t(removed ? "menuRestoreIngredient" : "menuRemoveIngredient", { name }));
+    chip.querySelector(".ingredient__icon").textContent = removed ? "+" : "−";
+  }
+
+  /** Opens a pizza in place: its ingredients with a minus each, plus Cancel and Order. */
+  function expand(item) {
+    const pizza = findPizza(item.dataset.name);
+    if (!pizza) return;
+    collapseAll();
+    item.classList.add("is-expanded");
+    item.querySelector(".dish").setAttribute("aria-expanded", "true");
+
+    const panel = document.createElement("div");
+    panel.className = "dish__panel";
+    const hint = document.createElement("p");
+    hint.className = "dish__panel-hint";
+    hint.textContent = t("menuCustomiseHint");
+    const chips = document.createElement("ul");
+    chips.className = "dish__chips";
+    for (const ingredient of pizza.ingredients) {
+      const li = document.createElement("li");
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "ingredient";
+      chip.dataset.ingredient = ingredient;
+      chip.innerHTML = `<span class="ingredient__name"></span><span class="ingredient__icon" aria-hidden="true"></span>`;
+      chip.firstChild.textContent = ingredient;
+      setChip(chip, false);
+      li.appendChild(chip);
+      chips.appendChild(li);
+    }
+    const actions = document.createElement("div");
+    actions.className = "dish__actions";
+    actions.innerHTML = `<button type="button" class="dish__cancel"></button><button type="button" class="dish__order"></button>`;
+    actions.querySelector(".dish__cancel").textContent = t("menuCancel");
+    actions.querySelector(".dish__order").textContent = t("menuOrder");
+    panel.append(hint, chips, actions);
+    item.appendChild(panel);
+    panel.scrollIntoView({ block: "nearest" });
+    chips.querySelector(".ingredient")?.focus();
+  }
+
+  /** "Pizza Hawaii without Pineapple and Cooked Ham" in the current language. */
+  function orderMessage(item) {
+    const removed = [...item.querySelectorAll('.ingredient[aria-pressed="true"]')].map((c) => c.dataset.ingredient);
+    if (!removed.length) return item.dataset.name;
+    const list = removed.length === 1
+      ? removed[0]
+      : `${removed.slice(0, -1).join(", ")} ${t("menuAnd")} ${removed[removed.length - 1]}`;
+    return `${item.dataset.name} ${t("menuWithout")} ${list}`;
+  }
+
   // --- events ----------------------------------------------------------------
 
   launcher.addEventListener("click", open);
@@ -267,13 +339,30 @@ export function createMenuBook({ launcher, onOrder }) {
   nextBtn.addEventListener("click", () => turn("next"));
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   spread.addEventListener("click", (e) => {
-    const dish = e.target.closest(".dish");
-    if (!dish || animating) return;
-    close();
-    onOrder(dish.dataset.name);
+    if (animating) return;
+    const item = e.target.closest(".dish-item");
+    if (!item) return;
+    if (e.target.closest(".dish")) {
+      if (item.classList.contains("is-expanded")) collapseAll();
+      else expand(item);
+    } else if (e.target.closest(".ingredient")) {
+      const chip = e.target.closest(".ingredient");
+      setChip(chip, chip.getAttribute("aria-pressed") !== "true");
+    } else if (e.target.closest(".dish__cancel")) {
+      collapseAll();
+      item.querySelector(".dish").focus();
+    } else if (e.target.closest(".dish__order")) {
+      const message = orderMessage(item);
+      close();
+      onOrder(message);
+    }
   });
   overlay.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape" && spread.querySelector(".dish-item.is-expanded")) {
+      const item = spread.querySelector(".dish-item.is-expanded");
+      collapseAll();
+      item.querySelector(".dish").focus();
+    } else if (e.key === "Escape") close();
     else if (e.key === "ArrowRight") turn("next");
     else if (e.key === "ArrowLeft") turn("prev");
     else if (e.key === "Tab") trapFocus(e);
