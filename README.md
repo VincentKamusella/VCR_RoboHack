@@ -13,6 +13,8 @@ against the database. Without Ollama the bot runs on the rules alone.
   to the database, and asks for a different pizza.
 - **Menu book:** a small book in the corner of the page opens into a two-page menu with every
   pizza and its ingredients. Tapping a pizza orders it through the chat.
+- **Custom pizza:** the first entry in the menu book starts with no toppings. A search box over
+  every ingredient in the database lets the customer add exactly the toppings they want.
 - **Language toggle:** English is the default. The EN/DE switch in the top bar changes the
   whole page to German and starts a new chat with a German intro.
 
@@ -84,6 +86,7 @@ backend/
       matcher.py         Matches pizza words to recipe names and aliases (fuzzy)
       ingredients.py     Maps ingredient words (EN/DE) to database ingredients
       dialog.py          Conversation logic and state transitions
+      custom.py          Custom pizza: recognizing the request and its toppings
       session.py         In-memory sessions
       responses.py       Everything the bot says, in English and German
       lexicon.py         Vocabulary: stopwords, exclusion words, aliases, translations
@@ -94,7 +97,7 @@ backend/
     services/
       order_sink.py      Internal hand-off of matched recipes
       wishlist.py        Pins pizzas that are missing from the menu
-      menu.py            Alphabetical menu with translated ingredients for the menu book
+      menu.py            Alphabetical menu and ingredient list for the menu book
   tests/                 pytest suite with its own small fixture database
 frontend/
   index.html             Chat page
@@ -179,6 +182,23 @@ clears the chat and starts a new conversation that opens with an intro in the ne
   "Pizza Calzone without Ricotta and Salami" or "Pizza Döner ohne Zwiebeln". "Cancel" or
   Escape closes the pizza again.
 - On screens narrower than 760 pixels the book shows one page at a time.
+
+**Custom Pizza.** The first entry on page 1 is the Custom Pizza ("Eigene Pizza" in German).
+
+- Opening it shows no toppings, an empty "No toppings yet." note and a search box.
+- The search box lists every ingredient from the database in the chosen language, with its
+  category. Typing filters the list, and names that start with the typed text come first.
+- Clicking a suggestion, or pressing Enter, adds it as a topping. The arrow keys move through
+  the list, and Escape closes it.
+- Each chosen topping has a minus to remove it again. "Order" stays disabled until at least
+  one topping is chosen.
+- Ordering sends e.g. "Custom Pizza with Salami, Mozzarella and Jalapeños" to the chat.
+
+Customers can also type it: "Custom Pizza with tuna and corn", "Eigene Pizza mit Feta und
+Spinat" or "I want to build my own pizza". The last one makes the bot ask for toppings, and the
+next message is read as the topping list. Words that fit several ingredients, like "cheese" or
+"onions", are not guessed: the bot asks for the exact one. The order for the internal hand-off
+uses the name "Custom Pizza" with `"custom": true` and the chosen ingredients.
 - Opening the page with `#menu` at the end of the address opens the book directly.
 
 ## How a message is processed
@@ -293,7 +313,7 @@ To add a wished-for pizza to the menu, add it to `data/pizzas.json` in pizza-db,
 |---|---|---|---|
 | `POST` | `/api/session` | `{language}`, optional, `en` or `de` | `{session_id, reply, language, suggestions}` with the greeting |
 | `POST` | `/api/chat` | `{session_id, message}` | `{session_id, reply, language, suggestions}` |
-| `GET` | `/api/menu?language=en` | none | `{language, pizzas: [{name, short_name, ingredients}]}` |
+| `GET` | `/api/menu?language=en` | none | `{language, pizzas: [{name, short_name, ingredients}], ingredients: [{name, label, category}]}` |
 | `GET` | `/api/health` | none | `{status, pizzas}` |
 
 The menu endpoint is the printed menu: names and ingredients for the menu book. Orders matched
@@ -351,7 +371,8 @@ the bot falls back to the rules when the model is offline.
 
 - One pizza per message. Two pizzas in one sentence can be read as one combined name, so
   "a Salami and a Funghi" becomes Pizza Salami e Funghi.
-- Ingredients can only be removed, not added or swapped.
+- Menu pizzas can only lose ingredients, not gain them. For other combinations there is the
+  Custom Pizza.
 - Sessions live in memory, so restarting the server ends open chats. Orders and the
   wishlist are stored on disk and survive restarts.
 - With llama3:8b each message takes about 4 to 8 seconds on a laptop, because the model is

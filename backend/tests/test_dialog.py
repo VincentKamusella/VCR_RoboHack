@@ -176,3 +176,40 @@ def test_menu_book_requests_remove_exactly_the_chosen_ingredients(engine):
                 assert order is not None, (lang, recipe.name, listed)
                 assert order["pizza"]["name"] == recipe.name
                 assert sorted(order["removed_ingredients"]) == sorted(db_names[k] for k in pick), (lang, listed)
+
+
+def test_custom_pizza_from_the_menu_book(chat, sink):
+    reply = chat("Custom Pizza with Tomato Sauce, Mozzarella, Salami and Mushrooms")
+    order = reply.order
+    assert order["pizza"]["name"] == "Custom Pizza" and order["pizza"]["custom"] is True
+    assert ingredient_names(order) == ["Tomato Sauce", "Mozzarella", "Salami", "Mushrooms"]
+    assert sink.orders == [order]
+    assert reply.text.startswith("Great choice: Custom Pizza with Tomato Sauce")
+
+
+def test_custom_pizza_in_german_uses_exact_ingredients(chat):
+    order = chat("Eigene Pizza mit Tomatensoße, Zwiebeln und Ananas").order
+    # "Zwiebeln" is the German name of Onion, so Red Onion is not added too.
+    assert ingredient_names(order) == ["Tomato Sauce", "Onion", "Pineapple"]
+
+
+def test_custom_pizza_without_toppings_asks_then_takes_the_next_message(chat):
+    reply = chat("I'd like to build my own pizza")
+    assert reply.order is None
+    assert chat.session.state == DialogState.CUSTOMIZING
+    order = chat("salami, corn and pineapple please").order
+    assert order["pizza"]["name"] == "Custom Pizza"
+    assert ingredient_names(order) == ["Salami", "Corn", "Pineapple"]
+
+
+def test_custom_pizza_vague_and_unknown_words_are_not_guessed(chat):
+    reply = chat("custom pizza with cheese and pickles and tuna")
+    assert ingredient_names(reply.order) == ["Tuna"]
+    assert reply.order["ignored"]["vague"] == ["cheese"]
+    assert reply.order["ignored"]["unknown"] == ["pickles"]
+    assert "“cheese”" in reply.text
+
+
+def test_leaving_custom_mode_with_a_normal_pizza(chat):
+    chat("build my own pizza")
+    assert chat("actually a Margherita").order["pizza"]["name"] == "Pizza Margherita"

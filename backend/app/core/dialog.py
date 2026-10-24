@@ -13,6 +13,7 @@ from ..data.state_store import now_iso
 from ..services.order_sink import OrderSink
 from ..services.wishlist import Wishlist
 from . import responses as r
+from .custom import CUSTOM_NAME, find_trigger, resolve_toppings, topping_tokens
 from .ingredients import IngredientResolver
 from .matcher import MatchKind, PizzaMatch, PizzaMatcher
 from .parser import (
@@ -79,9 +80,62 @@ class DialogEngine:
         if msg.wants_cancel:
             session.reset_pending()
             return Reply(r.say(lang, "cancelled"), r.SUGGESTIONS[lang])
+        start = find_trigger(msg)
+        if start is not None:
+            return self._custom(session, msg, topping_tokens(msg, start))
+        if session.state == DialogState.CUSTOMIZING:
+            chunks = topping_tokens(msg, 0)
+            request = resolve_toppings(chunks, self.resolver, self.recipes.ingredient_categories())
+            if request.toppings or request.vague:
+                return self._custom(session, msg, chunks)
+            session.reset_pending()   # not toppings after all: handle it as a normal message
         if session.state == DialogState.CLARIFYING:
             return self._clarify(session, msg)
         return self._choose(session, msg)
+
+    # --- custom pizza -----------------------------------------------------------------
+
+    def _custom(self, session: Session, msg: ParsedMessage, chunks: list[list[Token]]) -> Reply:
+        lang = session.language
+        categories = self.recipes.ingredient_categories()
+        request = resolve_toppings(chunks, self.resolver, categories)
+        notes = []
+        if request.vague:
+            notes.append(r.say(lang, "custom_vague", items=r.items(lang, [f"“{v}”" for v in request.vague])))
+        if request.unknown:
+            notes.append(r.say(lang, "unknown_ingredient", items=r.items(lang, [f"“{u}”" for u in request.unknown])))
+
+        if not request.toppings:
+            session.reset_pending()
+            session.state = DialogState.CUSTOMIZING
+            session.pending_message = msg.original
+            return Reply(" ".join([*notes, r.say(lang, "custom_ask")]))
+
+        order = self._new_order(session, msg.original, msg.text)
+        order.update({
+            "pizza": {"id": None, "slug": "custom-pizza", "name": CUSTOM_NAME,
+                      "style": "Custom", "origin": "Custom", "custom": True},
+            "ingredients": [{"name": n, "category": categories[n]} for n in request.toppings],
+            "removed_ingredients": [],
+            "ignored": {"not_on_pizza": [], "unknown": request.unknown, "additions": [], "vague": request.vague},
+        })
+        self.order_sink.submit(order)
+        session.reset_pending()
+        shown = [self.resolver.display_name(n, lang) for n in request.toppings]
+        text = r.say(lang, "custom_ok", pizza=r.say(lang, "custom_name"), items=r.items(lang, shown))
+        return Reply(" ".join([text, *notes, r.say(lang, "another")]), order=order)
+
+    def _new_order(self, session: Session, message: str, interpreted: str | None) -> dict:
+        """The fields every order shares."""
+        return {
+            "order_id": uuid.uuid4().hex,
+            "created_at": now_iso(),
+            "session_id": session.id,
+            "language": session.language,
+            "message": message,
+            "interpreted_as": interpreted or message,
+            "base": DOUGH,
+        }
 
     # --- awaiting a pizza -----------------------------------------------------------
 
@@ -207,25 +261,19 @@ class DialogEngine:
             terms, _ = self.resolver.resolve(leftover)
             additions = [t.text for t in terms if not (t.names & set(recipe_names))]
 
-        order = {
-            "order_id": uuid.uuid4().hex,
-            "created_at": now_iso(),
-            "session_id": session.id,
-            "language": lang,
-            "message": message,
-            "interpreted_as": interpreted or message,
+        order = self._new_order(session, message, interpreted)
+        order.update({
             "pizza": {
                 "id": recipe.id, "slug": recipe.slug, "name": recipe.name,
                 "style": recipe.style, "origin": recipe.origin,
             },
-            "base": DOUGH,
             "ingredients": [
                 {"name": i.name, "category": i.category}
                 for i in recipe.ingredients if i.name not in removed
             ],
             "removed_ingredients": removed,
             "ignored": {"not_on_pizza": not_on_pizza, "unknown": unknown, "additions": additions},
-        }
+        })
         self.order_sink.submit(order)
         session.reset_pending()
 

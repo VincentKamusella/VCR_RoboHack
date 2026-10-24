@@ -62,6 +62,13 @@ ALTERNATIVE_WORDS = "or oder either entweder"
 BYE_WORDS = "bye goodbye ciao tschuss tschues tschau servus adieu cya"
 # "Something with mushrooms": a request for suggestions, not for one particular pizza.
 VAGUE_WORDS = "something anything etwas irgendwas irgendetwas"
+# Requests for a pizza with self-chosen toppings.
+CUSTOM_PIZZA_PHRASES = [
+    "custom pizza", "custom", "build your own", "build my own", "make my own", "create my own",
+    "my own pizza", "own pizza", "my own toppings", "own toppings",
+    "eigene pizza", "eigenen pizza", "eigene", "wunschpizza", "pizza nach wahl",
+    "selbst zusammenstellen", "zusammenstellen", "eigene zutaten", "eigenen belag",
+]
 CANCEL_WORDS = "cancel abort stop reset restart abbrechen abbruch neustart"
 MENU_WORDS = "menu menue karte speisekarte options auswahl angebot list liste choices"
 MENU_PHRASES = [

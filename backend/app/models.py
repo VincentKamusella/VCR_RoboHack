@@ -33,6 +33,13 @@ class MenuItem(BaseModel):
     ingredients: list[str]
 
 
+class MenuIngredient(BaseModel):
+    name: str        # name in the database (English)
+    label: str       # name shown to the customer in the chosen language
+    category: str
+
+
 class MenuResponse(BaseModel):
     language: Language
     pizzas: list[MenuItem]
+    ingredients: list[MenuIngredient]   # everything a custom pizza can be topped with

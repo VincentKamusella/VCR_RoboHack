@@ -163,3 +163,22 @@ def test_chat_reply_may_not_claim_an_order(agent, llm, session):
     reply = agent.handle(session, "tell me about your pizzas")
     assert "noted your order" not in reply.text
     assert reply.order is None
+
+
+def test_custom_pizza_skips_extraction(agent, llm, session):
+    # No scripted extraction: the agent must not ask the model to read this message.
+    reply = agent.handle(session, "Custom Pizza with Salami and Corn")
+    assert reply.order["pizza"]["name"] == "Custom Pizza"
+    assert [i["name"] for i in reply.order["ingredients"]] == ["Salami", "Corn"]
+
+
+def test_custom_pizza_reply_must_name_every_topping(agent, llm, session):
+    llm.replies.append("Great choice: your Custom Pizza with Salami is noted!")
+    reply = agent.handle(session, "Custom Pizza with Salami and Corn")
+    assert reply.text.startswith("Great choice: Custom Pizza with Salami and Corn")
+
+
+def test_reply_lead_in_is_removed(agent, llm, session):
+    llm.extractions.append(ex(intent="chat"))
+    llm.replies.append("Here's the rewritten reply:\n\n\"Hi! Which pizza would you like?\"")
+    assert agent.handle(session, "hello").text == "Hi! Which pizza would you like?"

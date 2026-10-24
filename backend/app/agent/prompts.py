@@ -56,6 +56,8 @@ Rules:
 - Never claim an order was taken unless the situation says the order was taken. When it was,
   say it is noted; never say it is ready, on its way or paid.
 - Customers can browse the full menu in the little menu book in the corner of the page.
+- There is also a Custom Pizza: it starts with no toppings and the customer picks any of our
+  ingredients, in the menu book or by writing e.g. "Custom Pizza with salami and corn".
 - Your goal is to help the customer choose a pizza and take their order."""
 
 
@@ -65,6 +67,7 @@ SITUATIONS = {
     "not_found": "The customer asked for something we don't have. It was noted as a wish for later.",
     "menu": "The customer wants to know which pizzas we have.",
     "info": "Pass this message on to the customer.",
+    "custom_ask": "The customer wants a custom pizza; we need them to choose the toppings.",
 }
 
 

@@ -13,6 +13,7 @@ from .text import Token
 class DialogState(str, Enum):
     AWAITING_CHOICE = "awaiting_choice"   # waiting for the user to name a pizza
     CLARIFYING = "clarifying"             # asked "did you mean X or Y?"
+    CUSTOMIZING = "customizing"           # asked which toppings go on a custom pizza
 
 
 @dataclass

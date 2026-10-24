@@ -18,6 +18,7 @@ import logging
 from dataclasses import dataclass
 
 from ..core import responses as r
+from ..core.custom import find_trigger
 from ..core.dialog import DialogEngine, Reply
 from ..core.ingredients import ingredient_display_name
 from ..core.matcher import MatchKind
@@ -100,6 +101,10 @@ class PizzaAgent:
 
     def handle(self, session: Session, text: str) -> Reply:
         text = (text or "").strip()
+        if find_trigger(parse(text)) is not None or session.state == DialogState.CUSTOMIZING:
+            # Custom pizzas are read by the rules: every topping must be an exact ingredient.
+            kind, reply = self._kind(session, self.engine.handle(session, text))
+            return self._phrase_and_finish(session, text, kind, reply)
         try:
             extraction = self._extract(session, text)
             log.info("extraction for %r: %s", text, extraction)
@@ -109,6 +114,9 @@ class PizzaAgent:
             return self._finish(session, text, reply)
 
         kind, reply = self._process(session, text, extraction)
+        return self._phrase_and_finish(session, text, kind, reply)
+
+    def _phrase_and_finish(self, session: Session, text: str, kind: str, reply: Reply) -> Reply:
         try:
             phrased = self._phrase(session, text, kind, reply)
         except LLMError as e:
@@ -291,6 +299,8 @@ class PizzaAgent:
             return "not_found", reply
         if session.state == DialogState.CLARIFYING:
             return "clarify", reply
+        if session.state == DialogState.CUSTOMIZING:
+            return "custom_ask", reply
         return "info", reply
 
     # --- step 4: phrasing -------------------------------------------------------------
@@ -300,11 +310,19 @@ class PizzaAgent:
         messages = [{"role": "system", "content": prompts.reply_system(lang, self.menu_lines[lang])}]
         messages += session.history[-6:]
         messages.append({"role": "user", "content": prompts.reply_task(kind, text, reply.text, lang)})
-        out = self.llm.chat(messages, temperature=0.6, max_tokens=180).strip().strip('"').strip()
+        out = self._clean(self.llm.chat(messages, temperature=0.6, max_tokens=180))
         if self._valid(kind, out, reply, session):
             return out
         log.info("rejected LLM reply for %s: %r", kind, out)
         return reply.text
+
+    @staticmethod
+    def _clean(out: str) -> str:
+        """Drop lead-ins such as "Here's the rewritten reply:" and surrounding quotes."""
+        lines = [line.strip() for line in out.strip().splitlines() if line.strip()]
+        if len(lines) > 1 and lines[0].endswith(":"):
+            lines = lines[1:]
+        return " ".join(lines).strip().strip('"“”„').strip()
 
     def _valid(self, kind: str, out: str, reply: Reply, session: Session) -> bool:
         if not out or len(out) > MAX_REPLY_CHARS:
@@ -317,6 +335,13 @@ class PizzaAgent:
         def mentions(name: str) -> bool:
             return fold(short_name(name)) in text or fold(name) in text
 
+        if kind == "order" and reply.order["pizza"].get("custom"):
+            # Must name the custom pizza and every chosen topping.
+            names = {fold(r.say(session.language, "custom_name")), "custom", "eigene"}
+            if not any(n in text for n in names):
+                return False
+            return all(fold(ingredient_display_name(i["name"], session.language)) in text
+                       or fold(i["name"]) in text for i in reply.order["ingredients"])
         if kind == "order":
             order = reply.order
             if not mentions(order["pizza"]["name"]):
@@ -336,6 +361,8 @@ class PizzaAgent:
             return True
         if kind != "not_found" and any(claim in text for claim in CLAIMS_ORDER):
             return False   # only real orders may sound like confirmations
+        if kind == "custom_ask":
+            return "?" in out
         if kind == "clarify":
             return "?" in out and all(mentions(name) for name in session.candidates)
         if kind == "not_found" and reply.missing:

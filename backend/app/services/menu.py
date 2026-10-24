@@ -18,6 +18,16 @@ def short_name(name: str) -> str:
     return name
 
 
+def build_ingredients(recipes: RecipeRepository, language: str) -> list[dict]:
+    """Every ingredient in the database with its name in the given language, alphabetical."""
+    items = [
+        {"name": name, "label": ingredient_display_name(name, language), "category": category}
+        for name, category in recipes.ingredient_categories().items()
+    ]
+    items.sort(key=lambda item: fold(item["label"]))
+    return items
+
+
 def build_menu(recipes: RecipeRepository, language: str) -> list[dict]:
     """All pizzas, sorted alphabetically by their distinctive name."""
     items = [

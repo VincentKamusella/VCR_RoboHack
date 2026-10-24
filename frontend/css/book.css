@@ -370,3 +370,51 @@
 
 /* An opened pizza shows its ingredients as chips, so hide the italic summary line. */
 .dish-item.is-expanded .dish__ingredients { display: none; }
+
+/* ---- custom pizza ---- */
+.dish-item--custom { margin-bottom: 4px; border-bottom: 1px dashed rgba(110, 38, 25, .3); }
+.dish-item--custom .dish__name::after { content: " ✦"; color: #b08a3c; }
+.dish-item--custom.is-expanded { border-bottom-color: transparent; }
+
+.dish__empty { margin: 0; font-size: 13px; font-style: italic; color: var(--ink-soft); }
+.dish__empty[hidden] { display: none; }
+.ingredient--selected { background: #f4ead2; }
+
+.combo { position: relative; margin-top: 8px; }
+.combo__input {
+  width: 100%;
+  padding: 7px 12px;
+  border: 1px solid rgba(110, 38, 25, .4);
+  border-radius: 999px;
+  background: #fffdf6;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 14px;
+}
+.combo__input:focus { outline: 2px solid var(--leather); outline-offset: 1px; }
+.combo__list {
+  max-height: 168px;
+  margin: 4px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid rgba(110, 38, 25, .25);
+  border-radius: 10px;
+  background: #fffdf6;
+  box-shadow: 0 6px 16px rgba(60, 35, 15, .15);
+}
+.combo__list[hidden] { display: none; }
+.combo__option {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: var(--serif);
+  font-size: 14px;
+  cursor: pointer;
+}
+.combo__option:hover,
+.combo__option[aria-selected="true"] { background: rgba(110, 38, 25, .1); }
+.combo__category { font-size: 12px; font-style: italic; color: var(--ink-soft); }
+.combo__none { padding: 5px 10px; font-size: 13px; font-style: italic; color: var(--ink-soft); }

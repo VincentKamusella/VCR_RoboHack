@@ -93,3 +93,12 @@ def test_menu_in_german(client):
     pizzas = client.get("/api/menu?language=de").json()["pizzas"]
     hawaii = next(p for p in pizzas if p["name"] == "Pizza Hawaii")
     assert hawaii["ingredients"] == ["Tomatensoße", "Mozzarella", "Kochschinken", "Ananas"]
+
+
+def test_menu_lists_all_ingredients_for_the_custom_pizza(client):
+    body = client.get("/api/menu?language=de").json()
+    labels = [i["label"] for i in body["ingredients"]]
+    assert len(labels) == 29   # every ingredient of the fixture database
+    assert labels == sorted(labels, key=lambda s: s.lower().replace("ä", "a").replace("ö", "o").replace("ß", "ss"))
+    pineapple = next(i for i in body["ingredients"] if i["name"] == "Pineapple")
+    assert pineapple == {"name": "Pineapple", "label": "Ananas", "category": "fruit"}

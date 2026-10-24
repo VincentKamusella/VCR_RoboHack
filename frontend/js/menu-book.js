@@ -4,6 +4,7 @@ import { getMenu } from "./api.js";
 import { applyI18n, getLang, t } from "./i18n.js";
 
 const PER_PAGE = 10;
+const CUSTOM_ENTRY = { name: "__custom__", custom: true };
 const FLIP_MS = 700;
 const CLOSE_MS = 250;
 const narrowScreen = window.matchMedia("(max-width: 760px)");
@@ -51,7 +52,7 @@ export function createMenuBook({ launcher, onOrder }) {
   const prevBtn = overlay.querySelector('[data-dir="prev"]');
   const nextBtn = overlay.querySelector('[data-dir="next"]');
 
-  const cache = new Map();   // language -> pizzas
+  const cache = new Map();   // language -> { pizzas, ingredients } from the API
   let pages = [];            // arrays of up to PER_PAGE pizzas
   let first = 0;             // index of the first visible page
   let status = "idle";       // idle | loading | ready | error
@@ -95,18 +96,19 @@ export function createMenuBook({ launcher, onOrder }) {
       list.className = "page__list";
       for (const pizza of pages[index]) {
         const item = document.createElement("li");
-        item.className = "dish-item";
+        item.className = pizza.custom ? "dish-item dish-item--custom" : "dish-item";
         item.dataset.name = pizza.name;
+        if (pizza.custom) item.dataset.custom = "true";
         const dish = document.createElement("button");
         dish.type = "button";
         dish.className = "dish";
         dish.setAttribute("aria-expanded", "false");
         const name = document.createElement("span");
         name.className = "dish__name";
-        name.textContent = pizza.short_name;
+        name.textContent = pizza.custom ? t("customName") : pizza.short_name;
         const ingredients = document.createElement("span");
         ingredients.className = "dish__ingredients";
-        ingredients.textContent = pizza.ingredients.join(", ");
+        ingredients.textContent = pizza.custom ? t("customSubtitle") : pizza.ingredients.join(", ");
         dish.append(name, ingredients);
         item.appendChild(dish);
         list.appendChild(item);
@@ -206,7 +208,7 @@ export function createMenuBook({ launcher, onOrder }) {
     const lang = getLang();
     const token = ++loadToken;
     if (cache.has(lang)) {
-      pages = chunk(cache.get(lang), PER_PAGE);
+      pages = chunk(entries(cache.get(lang)), PER_PAGE);
       status = "ready";
       first = Math.min(first, Math.max(0, pageCount() - 1));
       first -= first % perSpread();
@@ -217,9 +219,9 @@ export function createMenuBook({ launcher, onOrder }) {
     render();
     try {
       const data = await getMenu(lang);
-      cache.set(lang, data.pizzas);
+      cache.set(lang, data);
       if (token !== loadToken) return;   // the language changed meanwhile
-      pages = chunk(data.pizzas, PER_PAGE);
+      pages = chunk(entries(data), PER_PAGE);
       status = "ready";
       first -= first % perSpread();
     } catch (err) {
@@ -228,6 +230,11 @@ export function createMenuBook({ launcher, onOrder }) {
       status = "error";
     }
     render();
+  }
+
+  /** The custom pizza comes first, then every menu pizza in alphabetical order. */
+  function entries(data) {
+    return [CUSTOM_ENTRY, ...data.pizzas];
   }
 
   // --- open / close ----------------------------------------------------------
@@ -254,7 +261,7 @@ export function createMenuBook({ launcher, onOrder }) {
   }
 
   function trapFocus(e) {
-    const focusable = [...book.querySelectorAll("button:not([disabled])")].filter((el) => !el.closest(".leaf"));
+    const focusable = [...book.querySelectorAll("button:not([disabled]), input")].filter((el) => !el.closest(".leaf"));
     if (!focusable.length) return;
     const firstEl = focusable[0];
     const lastEl = focusable[focusable.length - 1];
@@ -265,7 +272,7 @@ export function createMenuBook({ launcher, onOrder }) {
   // --- choosing a pizza and leaving out ingredients ----------------------------
 
   function findPizza(name) {
-    return (cache.get(getLang()) || []).find((p) => p.name === name);
+    return (cache.get(getLang())?.pizzas || []).find((p) => p.name === name);
   }
 
   function collapseAll() {
@@ -283,8 +290,18 @@ export function createMenuBook({ launcher, onOrder }) {
     chip.querySelector(".ingredient__icon").textContent = removed ? "+" : "−";
   }
 
+  function actionButtons() {
+    const actions = document.createElement("div");
+    actions.className = "dish__actions";
+    actions.innerHTML = `<button type="button" class="dish__cancel"></button><button type="button" class="dish__order"></button>`;
+    actions.querySelector(".dish__cancel").textContent = t("menuCancel");
+    actions.querySelector(".dish__order").textContent = t("menuOrder");
+    return actions;
+  }
+
   /** Opens a pizza in place: its ingredients with a minus each, plus Cancel and Order. */
   function expand(item) {
+    if (item.dataset.custom) return expandCustom(item);
     const pizza = findPizza(item.dataset.name);
     if (!pizza) return;
     collapseAll();
@@ -310,25 +327,167 @@ export function createMenuBook({ launcher, onOrder }) {
       li.appendChild(chip);
       chips.appendChild(li);
     }
-    const actions = document.createElement("div");
-    actions.className = "dish__actions";
-    actions.innerHTML = `<button type="button" class="dish__cancel"></button><button type="button" class="dish__order"></button>`;
-    actions.querySelector(".dish__cancel").textContent = t("menuCancel");
-    actions.querySelector(".dish__order").textContent = t("menuOrder");
-    panel.append(hint, chips, actions);
+    panel.append(hint, chips, actionButtons());
     item.appendChild(panel);
     panel.scrollIntoView({ block: "nearest" });
     chips.querySelector(".ingredient")?.focus();
   }
 
+  // --- custom pizza: no toppings at first, a search box adds them -------------
+
+  let comboCount = 0;
+
+  function expandCustom(item) {
+    collapseAll();
+    item.classList.add("is-expanded");
+    item.querySelector(".dish").setAttribute("aria-expanded", "true");
+    item.selected = [];   // [{ name, label }] in the order they were added
+
+    const listId = `combo-list-${++comboCount}`;
+    const panel = document.createElement("div");
+    panel.className = "dish__panel";
+    panel.innerHTML = `
+      <p class="dish__panel-hint"></p>
+      <ul class="dish__chips dish__selected"></ul>
+      <p class="dish__empty"></p>
+      <div class="combo">
+        <input class="combo__input" type="search" role="combobox" autocomplete="off" spellcheck="false"
+               aria-autocomplete="list" aria-expanded="false" aria-controls="${listId}">
+        <ul class="combo__list" id="${listId}" role="listbox" hidden></ul>
+      </div>`;
+    panel.querySelector(".dish__panel-hint").textContent = t("customHint");
+    panel.querySelector(".dish__empty").textContent = t("customEmpty");
+    const input = panel.querySelector(".combo__input");
+    input.placeholder = t("customSearch");
+    input.setAttribute("aria-label", t("customSearchLabel"));
+    panel.querySelector(".combo__list").setAttribute("aria-label", t("customSearchLabel"));
+    panel.appendChild(actionButtons());
+    item.appendChild(panel);
+    renderSelected(item);
+    panel.scrollIntoView({ block: "nearest" });
+    input.focus();
+  }
+
+  const foldText = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss").toLowerCase();
+
+  function renderSelected(item) {
+    const list = item.querySelector(".dish__selected");
+    list.replaceChildren();
+    for (const { name, label } of item.selected) {
+      const li = document.createElement("li");
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "ingredient ingredient--selected";
+      chip.dataset.name = name;
+      chip.setAttribute("aria-label", t("customRemove", { name: label }));
+      chip.innerHTML = `<span class="ingredient__name"></span><span class="ingredient__icon" aria-hidden="true">−</span>`;
+      chip.firstChild.textContent = label;
+      li.appendChild(chip);
+      list.appendChild(li);
+    }
+    item.querySelector(".dish__empty").hidden = item.selected.length > 0;
+    item.querySelector(".dish__order").disabled = item.selected.length === 0;
+  }
+
+  /** Shows the ingredients matching the search text (all of them for an empty search). */
+  function showOptions(item) {
+    const input = item.querySelector(".combo__input");
+    const list = item.querySelector(".combo__list");
+    const typed = input.value.trim().toLowerCase();
+    const query = foldText(typed);
+    const taken = new Set(item.selected.map((s) => s.name));
+    // Best matches first: the name starts with the text, then a word starts with it, then any match.
+    const rank = (ing) => {
+      const label = foldText(ing.label);
+      const words = `${label} ${foldText(ing.name)}`.split(/[\s-]+/);
+      if (ing.label.toLowerCase().startsWith(typed)) return 0;   // exact spelling, umlauts included
+      if (label.startsWith(query)) return 1;
+      if (words.some((w) => w.startsWith(query))) return 2;
+      return label.includes(query) || foldText(ing.name).includes(query) ? 3 : -1;
+    };
+    const matches = (cache.get(getLang())?.ingredients || [])
+      .filter((ing) => !taken.has(ing.name) && (!query || rank(ing) >= 0))
+      .map((ing, i) => ({ ing, i, r: query ? rank(ing) : 0 }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map((m) => m.ing);
+
+    list.replaceChildren();
+    item.activeOption = -1;   // nothing highlighted until the arrow keys are used
+    if (!matches.length) {
+      const empty = document.createElement("li");
+      empty.className = "combo__none";
+      empty.textContent = t("customNoMatch");
+      list.appendChild(empty);
+    }
+    matches.forEach((ing, i) => {
+      const option = document.createElement("li");
+      option.className = "combo__option";
+      option.id = `${list.id}-${i}`;
+      option.setAttribute("role", "option");
+      option.dataset.name = ing.name;
+      option.dataset.label = ing.label;
+      option.innerHTML = `<span class="combo__label"></span><span class="combo__category"></span>`;
+      option.firstChild.textContent = ing.label;
+      option.lastChild.textContent = t(`cat_${ing.category}`);
+      list.appendChild(option);
+    });
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    highlightOption(item);
+  }
+
+  function highlightOption(item) {
+    const options = [...item.querySelectorAll(".combo__option")];
+    const input = item.querySelector(".combo__input");
+    options.forEach((o, i) => o.setAttribute("aria-selected", String(i === item.activeOption)));
+    const active = options[item.activeOption];
+    if (active) {
+      input.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView({ block: "nearest" });
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  function hideOptions(item) {
+    const list = item?.querySelector(".combo__list");
+    if (!list || list.hidden) return false;
+    list.hidden = true;
+    item.querySelector(".combo__input").setAttribute("aria-expanded", "false");
+    item.querySelector(".combo__input").removeAttribute("aria-activedescendant");
+    return true;
+  }
+
+  function addTopping(item, option) {
+    item.selected.push({ name: option.dataset.name, label: option.dataset.label });
+    renderSelected(item);
+    const input = item.querySelector(".combo__input");
+    input.value = "";
+    showOptions(item);
+    input.focus();
+  }
+
+  function removeTopping(item, name) {
+    item.selected = item.selected.filter((s) => s.name !== name);
+    renderSelected(item);
+    if (!item.querySelector(".combo__list").hidden) showOptions(item);
+    item.querySelector(".combo__input").focus();
+  }
+
+  function joinList(items) {
+    return items.length === 1
+      ? items[0]
+      : `${items.slice(0, -1).join(", ")} ${t("menuAnd")} ${items[items.length - 1]}`;
+  }
+
   /** "Pizza Hawaii without Pineapple and Cooked Ham" in the current language. */
   function orderMessage(item) {
+    if (item.dataset.custom) {
+      return `${t("customName")} ${t("menuWith")} ${joinList(item.selected.map((s) => s.label))}`;
+    }
     const removed = [...item.querySelectorAll('.ingredient[aria-pressed="true"]')].map((c) => c.dataset.ingredient);
     if (!removed.length) return item.dataset.name;
-    const list = removed.length === 1
-      ? removed[0]
-      : `${removed.slice(0, -1).join(", ")} ${t("menuAnd")} ${removed[removed.length - 1]}`;
-    return `${item.dataset.name} ${t("menuWithout")} ${list}`;
+    return `${item.dataset.name} ${t("menuWithout")} ${joinList(removed)}`;
   }
 
   // --- events ----------------------------------------------------------------
@@ -341,8 +500,15 @@ export function createMenuBook({ launcher, onOrder }) {
   spread.addEventListener("click", (e) => {
     if (animating) return;
     const item = e.target.closest(".dish-item");
+    if (!e.target.closest(".combo")) hideOptions(spread.querySelector(".dish-item--custom.is-expanded"));
     if (!item) return;
-    if (e.target.closest(".dish")) {
+    if (e.target.closest(".combo__option")) {
+      addTopping(item, e.target.closest(".combo__option"));
+    } else if (e.target.closest(".combo__input")) {
+      showOptions(item);
+    } else if (e.target.closest(".ingredient--selected")) {
+      removeTopping(item, e.target.closest(".ingredient--selected").dataset.name);
+    } else if (e.target.closest(".dish")) {
       if (item.classList.contains("is-expanded")) collapseAll();
       else expand(item);
     } else if (e.target.closest(".ingredient")) {
@@ -355,6 +521,33 @@ export function createMenuBook({ launcher, onOrder }) {
       const message = orderMessage(item);
       close();
       onOrder(message);
+    }
+  });
+  // Typing in the ingredient search.
+  spread.addEventListener("input", (e) => {
+    if (e.target.matches(".combo__input")) showOptions(e.target.closest(".dish-item"));
+  });
+  spread.addEventListener("keydown", (e) => {
+    if (!e.target.matches(".combo__input")) return;
+    const item = e.target.closest(".dish-item");
+    const options = item.querySelectorAll(".combo__option");
+    const open = !item.querySelector(".combo__list").hidden;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!open) return showOptions(item);
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      item.activeOption = Math.max(0, Math.min(options.length - 1, item.activeOption + step));
+      highlightOption(item);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      // Enter adds the highlighted ingredient, or the best match when none is highlighted.
+      const option = options[item.activeOption] || (e.target.value.trim() ? options[0] : null);
+      if (open && option) addTopping(item, option);
+    } else if (e.key === "Escape" && hideOptions(item)) {
+      e.stopPropagation();   // first Escape only closes the suggestions
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.stopPropagation();   // move the text cursor, don't turn the page
     }
   });
   overlay.addEventListener("keydown", (e) => {

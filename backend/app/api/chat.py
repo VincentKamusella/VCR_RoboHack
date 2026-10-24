@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 
 from ..container import Services
 from ..models import ChatRequest, ChatResponse, Language, MenuResponse, SessionRequest
-from ..services.menu import build_menu
+from ..services.menu import build_ingredients, build_menu
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -42,5 +42,7 @@ def chat(body: ChatRequest, request: Request) -> ChatResponse:
 
 @router.get("/menu", response_model=MenuResponse)
 def menu(request: Request, language: Language = "en") -> MenuResponse:
-    """Every pizza with its ingredients, sorted alphabetically, for the menu book."""
-    return MenuResponse(language=language, pizzas=build_menu(_services(request).recipes, language))
+    """Every pizza with its ingredients, plus all ingredients for the custom pizza, alphabetical."""
+    recipes = _services(request).recipes
+    return MenuResponse(language=language, pizzas=build_menu(recipes, language),
+                        ingredients=build_ingredients(recipes, language))
