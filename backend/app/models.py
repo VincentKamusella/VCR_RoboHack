@@ -1,16 +1,23 @@
 """Public API schemas. These are the only shapes the frontend ever sees.
 
-Matched recipes are deliberately absent: they stay inside the backend.
+Matched orders are deliberately absent: they stay inside the backend.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
+Language = Literal["en", "de"]
 
-class SessionResponse(BaseModel):
-    session_id: str
-    reply: str
-    suggestions: list[str] = []
+
+class SessionRequest(BaseModel):
+    language: Language = "en"
+
+
+class LanguageRequest(BaseModel):
+    session_id: str | None = Field(default=None, max_length=64)
+    language: Language
 
 
 class ChatRequest(BaseModel):
@@ -21,4 +28,16 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
+    language: Language
     suggestions: list[str] = []
+
+
+class MenuItem(BaseModel):
+    name: str
+    short_name: str
+    ingredients: list[str]
+
+
+class MenuResponse(BaseModel):
+    language: Language
+    pizzas: list[MenuItem]

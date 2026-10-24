@@ -1,24 +1,34 @@
-// The only module that talks to the backend. The UI never sees recipe data:
-// the API returns just the bot's reply text and optional quick-reply suggestions.
+// The only module that talks to the backend. Chat responses carry just the bot's reply text
+// and quick-reply suggestions; matched orders stay inside the backend.
 
 const BASE = (window.PIZZABOT_API_BASE || "").replace(/\/$/, "");
 
-async function post(path, body) {
+async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return res.json();
 }
 
-/** Starts a conversation. Returns { session_id, reply, suggestions }. */
-export function startSession() {
-  return post("/api/session");
+/** Starts a conversation in the given language. Returns { session_id, reply, language, suggestions }. */
+export function startSession(language) {
+  return request("POST", "/api/session", { language });
 }
 
-/** Sends one user message. Returns { session_id, reply, suggestions }. */
+/** Switches the conversation language. The reply is a fresh intro in that language. */
+export function changeLanguage(sessionId, language) {
+  return request("POST", "/api/session/language", { session_id: sessionId, language });
+}
+
+/** Sends one user message. Returns { session_id, reply, language, suggestions }. */
 export function sendMessage(sessionId, message) {
-  return post("/api/chat", { session_id: sessionId, message });
+  return request("POST", "/api/chat", { session_id: sessionId, message });
+}
+
+/** The menu: every pizza with its ingredients, alphabetical. Returns { language, pizzas }. */
+export function getMenu(language) {
+  return request("GET", `/api/menu?language=${encodeURIComponent(language)}`);
 }

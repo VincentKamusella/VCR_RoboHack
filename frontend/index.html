@@ -5,16 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pizza Chat</title>
   <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/book.css">
 </head>
 <body>
   <main class="chat" aria-label="Pizza chat">
     <header class="chat__header">
       <span class="chat__logo" aria-hidden="true">🍕</span>
-      <div>
-        <h1 class="chat__title">Pizza Chat</h1>
-        <p class="chat__subtitle">English · Deutsch</p>
+      <h1 class="chat__title">Pizza Chat</h1>
+      <div class="lang-toggle" role="group" data-i18n-aria-label="languageLabel">
+        <button type="button" class="lang-toggle__option" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" class="lang-toggle__option" data-lang="de" aria-pressed="false">DE</button>
       </div>
-      <button class="chat__restart" id="restart" type="button" title="Start a new chat">New chat</button>
+      <button class="chat__restart" id="restart" type="button" data-i18n="newChat" data-i18n-title="newChatTitle"></button>
     </header>
 
     <section class="chat__log" id="log" aria-live="polite"></section>
@@ -23,10 +25,19 @@
 
     <form class="chat__form" id="form" autocomplete="off">
       <input class="chat__input" id="input" name="message" maxlength="500"
-             placeholder="e.g. Hawaii without pineapple / Salami ohne Zwiebeln" aria-label="Your message" required>
-      <button class="chat__send" type="submit" aria-label="Send">Send</button>
+             data-i18n-placeholder="placeholder" data-i18n-aria-label="messageLabel" required>
+      <button class="chat__send" type="submit" data-i18n="send"></button>
     </form>
   </main>
+
+  <!-- The menu book in the corner. Clicking it opens the full menu (js/menu-book.js). -->
+  <button class="menu-launcher" id="menu-launcher" type="button" aria-haspopup="dialog" aria-expanded="false"
+          data-i18n-aria-label="menuOpen" data-i18n-title="menuOpen">
+    <span class="menu-launcher__book">
+      <span class="menu-launcher__emblem" aria-hidden="true">🍕</span>
+      <span class="menu-launcher__label" data-i18n="menuSpine"></span>
+    </span>
+  </button>
 
   <script src="js/config.js"></script>
   <script type="module" src="js/chat.js"></script>

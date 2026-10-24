@@ -19,6 +19,8 @@ class DialogState(str, Enum):
 class Session:
     id: str
     language: str = "en"
+    # True once the user picked a language in the UI; replies then stay in that language.
+    language_locked: bool = False
     state: DialogState = DialogState.AWAITING_CHOICE
     candidates: list[str] = field(default_factory=list)
     pending_exclusions: list[list[Token]] = field(default_factory=list)

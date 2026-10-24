@@ -22,7 +22,7 @@ def test_session_and_chat_flow(client, sink):
     res = client.post("/api/chat", json={"session_id": start["session_id"], "message": "Hawaii without pineapple"})
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == {"session_id", "reply", "suggestions"}   # no recipe data leaks out
+    assert set(body) == {"session_id", "reply", "language", "suggestions"}   # no recipe data leaks out
     assert body["session_id"] == start["session_id"]
     assert sink.orders[0]["removed_ingredients"] == ["Pineapple"]
 
@@ -53,3 +53,46 @@ def test_internal_routes_with_token(settings, sink):
 
 def test_health(client):
     assert client.get("/api/health").json() == {"status": "ok", "pizzas": 16}
+
+
+def test_session_defaults_to_english(client):
+    body = client.post("/api/session").json()
+    assert body["language"] == "en"
+    assert body["reply"].startswith("Hi!")
+
+
+def test_session_in_german(client):
+    body = client.post("/api/session", json={"language": "de"}).json()
+    assert body["language"] == "de"
+    assert body["reply"].startswith("Hallo!")
+
+
+def test_language_toggle_sends_new_intro_and_sticks(client):
+    sid = client.post("/api/session").json()["session_id"]
+    body = client.post("/api/session/language", json={"session_id": sid, "language": "de"}).json()
+    assert body["session_id"] == sid
+    assert body["reply"].startswith("Hallo!")
+    # The chosen language wins even when the user writes in English.
+    reply = client.post("/api/chat", json={"session_id": sid, "message": "Salami please"}).json()
+    assert reply["reply"].startswith("Gute Wahl")
+    assert reply["language"] == "de"
+
+
+def test_language_must_be_supported(client):
+    assert client.post("/api/session", json={"language": "fr"}).status_code == 422
+    assert client.get("/api/menu?language=fr").status_code == 422
+
+
+def test_menu_is_alphabetical_with_ingredients(client):
+    pizzas = client.get("/api/menu").json()["pizzas"]
+    short = [p["short_name"] for p in pizzas]
+    assert short[:3] == ["BBQ Chicken", "Calzone", "Capricciosa"]
+    assert short == sorted(short, key=lambda n: n.lower().replace("ö", "o"))
+    hawaii = next(p for p in pizzas if p["name"] == "Pizza Hawaii")
+    assert hawaii["ingredients"] == ["Tomato Sauce", "Mozzarella", "Cooked Ham", "Pineapple"]
+
+
+def test_menu_in_german(client):
+    pizzas = client.get("/api/menu?language=de").json()["pizzas"]
+    hawaii = next(p for p in pizzas if p["name"] == "Pizza Hawaii")
+    assert hawaii["ingredients"] == ["Tomatensoße", "Mozzarella", "Kochschinken", "Ananas"]

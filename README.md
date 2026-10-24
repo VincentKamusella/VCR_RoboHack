@@ -10,6 +10,10 @@ rule-based parsing and fuzzy matching.
   the recipe is handed over without those ingredients.
 - **Pizza not found:** the bot tells the user, pins the request to a wishlist for later addition
   to the database, and asks for a different pizza.
+- **Menu book:** a small book in the corner of the page opens into a two-page menu with every
+  pizza and its ingredients. Tapping a pizza orders it through the chat.
+- **Language toggle:** English is the default. The EN/DE switch in the top bar changes the
+  whole page to German, and the bot sends a new intro in German.
 
 ```
 You:  Ich hätte gerne eine Hawaii ohne Ananas, bitte
@@ -75,14 +79,38 @@ backend/
     services/
       order_sink.py      Internal hand-off of matched recipes
       wishlist.py        Pins pizzas that are missing from the menu
+      menu.py            Alphabetical menu with translated ingredients for the menu book
   tests/                 pytest suite with its own small fixture database
 frontend/
   index.html             Chat page
-  css/chat.css           Styles, light and dark mode
+  css/chat.css           Chat styles, light and dark mode
+  css/book.css           Menu book styles: corner book, open spread, page turning
   js/config.js           Backend URL (empty = same origin)
   js/api.js              The only module that calls the backend
-  js/chat.js             UI rendering and input handling
+  js/i18n.js             UI texts in English and German, current language
+  js/menu-book.js        The menu book component
+  js/chat.js             Chat rendering, language toggle and input handling
 ```
+
+## Menu book and language
+
+**Language comes first.** The page starts in English. Every text on the page, the chat intro
+and the menu book follow the language chosen with the EN/DE toggle in the top bar. Switching
+keeps the conversation, drops any open question, and the bot greets again in the new language.
+
+**The menu book** sits in the bottom-right corner as a small leather-bound book.
+
+- Clicking it opens the book in the middle of the screen as a two-page spread.
+- Pizzas are sorted alphabetically by their distinctive name, so "Pizza Hawaii" is filed under
+  H and "BBQ Chicken Pizza" under B.
+- Each page holds up to 10 pizzas with their ingredients. Ingredient names are translated
+  in German.
+- The left page number sits in the bottom-left corner and the right one in the bottom-right.
+- "Previous" and "Next" turn the page with a page-flip animation. The arrow keys work too.
+- Escape, the close button or a click outside closes the book.
+- Tapping a pizza closes the book and orders it in the chat.
+- On screens narrower than 760 pixels the book shows one page at a time.
+- Opening the page with `#menu` at the end of the address opens the book directly.
 
 ## How a message is processed
 
@@ -93,8 +121,9 @@ frontend/
    are `ohne`, `kein`, `keine`, `keinen` and `außer`. German postfix forms like
    "Zwiebeln weglassen" or "Zwiebeln weg" work too. A list ends at words like `on`, `but`,
    `aber` or `with`, so "No onions on my Tonno" works.
-3. **Detect the language** from typical words. The bot answers in the user's language and
-   switches when the user does.
+3. **Pick the reply language.** The bot answers in the language chosen with the toggle, which
+   defaults to English. Messages are understood in both languages either way. API clients
+   that never set a language get automatic detection from typical words.
 4. **Match the pizza.**
    - Recipe names and aliases are compared word by word with fuzzy matching, so "margarita",
      "capriciosa" and "doener" work.
@@ -191,9 +220,14 @@ To add a wished-for pizza to the menu, add it to `data/pizzas.json` in pizza-db,
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/session` | none | `{session_id, reply, suggestions}` with the greeting |
-| `POST` | `/api/chat` | `{session_id, message}` | `{session_id, reply, suggestions}` |
+| `POST` | `/api/session` | `{language}`, optional, `en` or `de` | `{session_id, reply, language, suggestions}` with the greeting |
+| `POST` | `/api/session/language` | `{session_id, language}` | Same shape, with a new intro in that language |
+| `POST` | `/api/chat` | `{session_id, message}` | `{session_id, reply, language, suggestions}` |
+| `GET` | `/api/menu?language=en` | none | `{language, pizzas: [{name, short_name, ingredients}]}` |
 | `GET` | `/api/health` | none | `{status, pizzas}` |
+
+The menu endpoint is the printed menu: names and ingredients for the menu book. Orders matched
+in the chat are never returned to the browser.
 
 An unknown or expired `session_id` silently starts a new session. Messages are limited to
 500 characters. Interactive API docs are at `http://localhost:8000/docs`.

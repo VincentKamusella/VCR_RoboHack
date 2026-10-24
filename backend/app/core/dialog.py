@@ -54,10 +54,17 @@ class DialogEngine:
         lang = session.language
         return Reply(r.say(lang, "greeting"), r.SUGGESTIONS[lang])
 
+    def set_language(self, session: Session, language: str) -> Reply:
+        """The user picked a language in the UI: switch, drop any open question, greet again."""
+        session.reset_pending()
+        session.language = language
+        session.language_locked = True
+        return self.greet(session)
+
     def handle(self, session: Session, text: str) -> Reply:
         text = (text or "").strip()
         msg = parse(text)
-        if msg.language:
+        if msg.language and not session.language_locked:
             session.language = msg.language
         lang = session.language
 

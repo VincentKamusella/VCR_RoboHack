@@ -18,6 +18,13 @@ class ResolvedTerm:
     names: frozenset[str]     # matching ingredient names in the database
 
 
+def ingredient_display_name(name: str, language: str) -> str:
+    """'Pineapple' -> 'Ananas' in German; English names are the database names."""
+    if language == "de" and name in lexicon.INGREDIENTS:
+        return lexicon.INGREDIENTS[name][0]
+    return name
+
+
 class IngredientResolver:
     def __init__(self, ingredient_categories: dict[str, str]):
         self.categories = ingredient_categories
@@ -84,6 +91,4 @@ class IngredientResolver:
         return None
 
     def display_name(self, name: str, language: str) -> str:
-        if language == "de" and name in lexicon.INGREDIENTS:
-            return lexicon.INGREDIENTS[name][0]
-        return name
+        return ingredient_display_name(name, language)

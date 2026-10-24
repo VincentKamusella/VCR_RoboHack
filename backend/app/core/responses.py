@@ -5,7 +5,7 @@ from .text import join_list
 
 TEXTS = {
     "en": {
-        "greeting": "Hi! 🍕 What kind of pizza would you like? (Deutsch geht auch!)",
+        "greeting": "Hi! 🍕 What kind of pizza would you like? You'll find our menu in the little book in the corner.",
         "order_ok": "Great choice: {pizza}{without}. Your order is noted! 🍕",
         "without": " without {items}",
         "not_on_pizza": "By the way, {pizza} doesn't come with {items} anyway.",
@@ -20,7 +20,7 @@ TEXTS = {
         "clarify_again": "Sorry, I didn't get that. Please pick one: {options}.",
         "not_understood": "I didn't catch which pizza you'd like. Try something like “Margherita” or “Hawaii without pineapple”.",
         "exclusions_only": "Which pizza should I leave {items} off?",
-        "menu": "Here is our menu: {names}. Which one would you like?",
+        "menu": "You can also browse the menu book in the corner. 📖 Our pizzas: {names}. Which one would you like?",
         "cancelled": "No problem. Which pizza would you like instead?",
         "too_long": "That's a bit long for me. Please just tell me the pizza you'd like.",
         "greet_back": "Hi! 🍕 What kind of pizza would you like?",
@@ -29,7 +29,7 @@ TEXTS = {
         "or": "or",
     },
     "de": {
-        "greeting": "Hallo! 🍕 Welche Pizza darf es sein? (English works too!)",
+        "greeting": "Hallo! 🍕 Welche Pizza darf es sein? Unsere Speisekarte findest du im kleinen Buch in der Ecke.",
         "order_ok": "Gute Wahl: {pizza}{without}. Deine Bestellung ist notiert! 🍕",
         "without": " ohne {items}",
         "not_on_pizza": "Übrigens: Auf der {pizza} sind sowieso keine {items}.",
@@ -44,7 +44,7 @@ TEXTS = {
         "clarify_again": "Das habe ich nicht verstanden. Bitte wähle eine: {options}.",
         "not_understood": "Ich habe nicht verstanden, welche Pizza du möchtest. Probier zum Beispiel „Margherita“ oder „Hawaii ohne Ananas“.",
         "exclusions_only": "Bei welcher Pizza soll ich {items} weglassen?",
-        "menu": "Das ist unsere Karte: {names}. Welche möchtest du?",
+        "menu": "Du kannst auch im Speisekarten-Buch in der Ecke blättern. 📖 Unsere Pizzen: {names}. Welche möchtest du?",
         "cancelled": "Kein Problem. Welche Pizza möchtest du stattdessen?",
         "too_long": "Das ist mir etwas zu lang. Sag mir einfach, welche Pizza du möchtest.",
         "greet_back": "Hallo! 🍕 Welche Pizza darf es sein?",
